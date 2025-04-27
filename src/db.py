@@ -12,55 +12,70 @@ def initialize_db():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Create users table
+    # Create User table
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        role TEXT CHECK(role IN ('admin', 'user')) NOT NULL
+    CREATE TABLE IF NOT EXISTS User (
+        UserID INTEGER PRIMARY KEY AUTOINCREMENT,
+        Username TEXT UNIQUE NOT NULL,
+        Password TEXT NOT NULL,
+        Role TEXT CHECK(Role IN ('admin', 'user')) NOT NULL
     );
     """)
 
-    # Create categories table
+    # Create Category table
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS categories (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE NOT NULL
+    CREATE TABLE IF NOT EXISTS Category (
+        CategoryID INTEGER PRIMARY KEY AUTOINCREMENT,
+        Name TEXT UNIQUE NOT NULL
     );
     """)
 
-    # Create payment_methods table
+    # Create Payment_Method table
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS payment_methods (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        method TEXT UNIQUE NOT NULL
+    CREATE TABLE IF NOT EXISTS Payment_Method (
+        PaymentMethodID INTEGER PRIMARY KEY AUTOINCREMENT,
+        Method TEXT UNIQUE NOT NULL
     );
     """)
 
-    # Create expenses table
+    # Create Expense table
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS expenses (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        category TEXT,
-        amount REAL NOT NULL,
-        date TEXT NOT NULL,
-        description TEXT,
-        tag TEXT,
-        payment_method TEXT,
-        FOREIGN KEY(user_id) REFERENCES users(id)
+    CREATE TABLE IF NOT EXISTS Expense (
+        ExpenseID INTEGER PRIMARY KEY AUTOINCREMENT,
+        UserID INTEGER,
+        -- Instead of storing category as text, ideally we would use a relationship table.
+        -- However, for simplicity, we'll keep the Expense table as is.
+        Category TEXT,
+        Amount REAL NOT NULL,
+        Date TEXT NOT NULL,
+        Description TEXT,
+        Tag TEXT,
+        Payment_Method TEXT,
+        FOREIGN KEY(UserID) REFERENCES User(UserID)
     );
     """)
 
-    # Insert default admin if not exists
+    # Create Budget table with a foreign key to Category
     cursor.execute("""
-    INSERT OR IGNORE INTO users (username, password, role)
+    CREATE TABLE IF NOT EXISTS Budget (
+        BudgetID INTEGER PRIMARY KEY AUTOINCREMENT,
+        UserID INTEGER,
+        CategoryID INTEGER,
+        Month TEXT,  -- Format: YYYY-MM
+        Amount REAL NOT NULL,
+        FOREIGN KEY(UserID) REFERENCES User(UserID),
+        FOREIGN KEY(CategoryID) REFERENCES Category(CategoryID)
+    );
+    """)
+
+    # Insert default admin user if not exists
+    cursor.execute("""
+    INSERT OR IGNORE INTO User (Username, Password, Role)
     VALUES ('admin', 'admin123', 'admin');
     """)
 
     conn.commit()
     conn.close()
 
-# Initialize the database upon import
+# Initialize the database on import
 initialize_db()
