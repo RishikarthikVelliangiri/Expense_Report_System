@@ -2,11 +2,34 @@ import shlex
 from auth import login
 from user import add_user, list_users
 from expense import add_expense, update_expense, delete_expense, list_expenses
-from reports import top_expenses, category_spending, above_average_expenses, monthly_category_spending, highest_spender_per_month, frequent_category, payment_method_usage, tag_expenses
+from reports import (top_expenses, category_spending, above_average_expenses, 
+                     monthly_category_spending, highest_spender_per_month, frequent_category, 
+                     payment_method_usage, tag_expenses)
 from utils import import_expenses, export_csv
+from visualizations import visualize_category_spending
+from trends import visualize_expense_trends
+from budget import set_budget as set_budget_func, check_budget as check_budget_func
 
 # Global variable to hold the currently logged-in user info
 current_user = None
+
+def print_welcome_banner():
+    banner = """
+***************************************************************
+*                                                             *
+*    Welcome to the Expense Reporting System!                 *
+*                                                             *
+*    Developed by:                                            *
+*       Rishikarthik Velliangiri                              *
+*       Karmandeep Singh                                      *
+*       Liam Shaw                                             *
+*       Paarth Gala                                           *
+*                                                             *
+*    Class: CSIT222                                           *
+*                                                             *
+***************************************************************
+    """
+    print(banner)
 
 def print_help():
     help_text = """
@@ -42,10 +65,10 @@ Available commands:
     Add a new expense record.
     
   update_expense <expense_id> <field> <new_value>
-    Update a specific field of an existing expense.
+    Update an existing expense.
     
   delete_expense <expense_id>
-    Delete an expense by its ID.
+    Delete an expense.
     
   list_expenses
     List all expenses for the current user.
@@ -57,19 +80,19 @@ Available commands:
     Export expenses to a CSV file sorted by the specified field.
     
   report top_expenses <N> <start_date> <end_date>
-    Display the top N highest expenses within a date range.
+    Show the top N highest expenses within a date range.
     
   report category_spending <category>
-    Show the total spending for a specific category.
+    Show total spending for a specific category.
     
   report above_average_expenses
-    List expenses that exceed the average spending of their categories.
+    List expenses that exceed the average spending of their category.
     
   report monthly_category_spending
     Present the total spending per category for each month.
     
   report highest_spender_per_month
-    Identify the user with the highest spending for each month.
+    Show the user with the highest spending for each month.
     
   report frequent_category
     Show the most frequently used expense category.
@@ -80,6 +103,18 @@ Available commands:
   report tag_expenses
     Display the count of expenses for each tag.
     
+  report visualize_category_spending
+    Display a pie chart of spending per category.
+    
+  report expense_trends
+    Display a line chart of monthly expense trends.
+    
+  set_budget <category> <month: YYYY-MM> <amount>
+    Set or update your budget for a category (must exist in the category table) and month.
+    
+  view_budget <category> <month: YYYY-MM>
+    View your budget and current spending for a category.
+    
   exit
     Exit the application.
 """
@@ -87,6 +122,8 @@ Available commands:
 
 def main():
     global current_user
+    # Print a fun, engaging welcome banner with our names and class info.
+    print_welcome_banner()
     print("Expense Reporting System CLI. Type 'help' for available commands.")
     
     while True:
@@ -149,7 +186,7 @@ def main():
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 try:
-                    cursor.execute("INSERT INTO categories (name) VALUES (?)", (args[1],))
+                    cursor.execute("INSERT INTO Category (Name) VALUES (?)", (args[1],))
                     conn.commit()
                     print(f"Category '{args[1]}' added successfully.")
                 except Exception as e:
@@ -161,7 +198,7 @@ def main():
                 from db import get_db_connection
                 conn = get_db_connection()
                 cursor = conn.cursor()
-                cursor.execute("SELECT * FROM categories")
+                cursor.execute("SELECT * FROM Category")
                 categories = cursor.fetchall()
                 conn.close()
                 if categories:
@@ -178,7 +215,7 @@ def main():
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 try:
-                    cursor.execute("INSERT INTO payment_methods (method) VALUES (?)", (args[1],))
+                    cursor.execute("INSERT INTO Payment_Method (Method) VALUES (?)", (args[1],))
                     conn.commit()
                     print(f"Payment method '{args[1]}' added successfully.")
                 except Exception as e:
@@ -190,7 +227,7 @@ def main():
                 from db import get_db_connection
                 conn = get_db_connection()
                 cursor = conn.cursor()
-                cursor.execute("SELECT * FROM payment_methods")
+                cursor.execute("SELECT * FROM Payment_Method")
                 methods = cursor.fetchall()
                 conn.close()
                 if methods:
@@ -268,45 +305,83 @@ def main():
                 if len(args) < 2:
                     print("Usage: report <report_type> [additional parameters]")
                     continue
+                # For non-admin users, pass their ID to filter reports.
+                filter_user = current_user['id'] if current_user['role'] != 'admin' else None
                 report_type = args[1].lower()
                 if report_type == "top_expenses":
                     if len(args) != 5:
                         print("Usage: report top_expenses <N> <start_date> <end_date>")
                         continue
-                    results = top_expenses(int(args[2]), (args[3], args[4]))
+                    results = top_expenses(int(args[2]), (args[3], args[4]), filter_user)
                     for r in results:
                         print(r)
                 elif report_type == "category_spending":
                     if len(args) != 3:
                         print("Usage: report category_spending <category>")
                         continue
-                    total = category_spending(args[2])
+                    total = category_spending(args[2], filter_user)
                     print(f"Total spending for {args[2]}: {total}")
                 elif report_type == "above_average_expenses":
-                    results = above_average_expenses()
+                    results = above_average_expenses(filter_user)
                     for r in results:
                         print(r)
                 elif report_type == "monthly_category_spending":
-                    results = monthly_category_spending()
+                    results = monthly_category_spending(filter_user)
                     for r in results:
                         print(r)
                 elif report_type == "highest_spender_per_month":
-                    results = highest_spender_per_month()
+                    results = highest_spender_per_month(filter_user)
                     for r in results:
                         print(r)
                 elif report_type == "frequent_category":
-                    result = frequent_category()
+                    result = frequent_category(filter_user)
                     print(f"Most frequent category: {result}")
                 elif report_type == "payment_method_usage":
-                    results = payment_method_usage()
+                    results = payment_method_usage(filter_user)
                     for r in results:
                         print(r)
                 elif report_type == "tag_expenses":
-                    results = tag_expenses()
+                    results = tag_expenses(filter_user)
                     for r in results:
                         print(r)
+                elif report_type == "visualize_category_spending":
+                    visualize_category_spending()
+                elif report_type == "expense_trends":
+                    visualize_expense_trends(filter_user)
                 else:
                     print("Unknown report type.")
+
+            elif command == "set_budget":
+                if not current_user:
+                    print("Please login to set a budget.")
+                    continue
+                if len(args) != 4:
+                    print("Usage: set_budget <category> <month: YYYY-MM> <amount>")
+                    continue
+                try:
+                    budget_amount = float(args[3])
+                except ValueError:
+                    print("Invalid amount.")
+                    continue
+                message = set_budget_func(current_user['id'], args[1], args[2], budget_amount)
+                print(message)
+
+            elif command == "view_budget":
+                if not current_user:
+                    print("Please login to view a budget.")
+                    continue
+                if len(args) != 3:
+                    print("Usage: view_budget <category> <month: YYYY-MM>")
+                    continue
+                budget_amount, spending = check_budget_func(current_user['id'], args[1], args[2])
+                if budget_amount is None:
+                    print(f"No budget set for category '{args[1]}' in {args[2]}. Current spending: {spending}")
+                else:
+                    print(f"Budget for {args[1]} in {args[2]}: {budget_amount}. Current spending: {spending}")
+                    if spending >= budget_amount:
+                        print("Alert: You have exceeded your budget!")
+                    elif spending >= 0.9 * budget_amount:
+                        print("Warning: You are close to exceeding your budget.")
 
             elif command == "exit":
                 print("Exiting the application.")
